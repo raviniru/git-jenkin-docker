@@ -1,0 +1,51 @@
+#installation step
+
+    1  sudo apt update
+    2  sudo apt install openjdk-8-jdk
+    3  $ wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo apt-key add
+    4  wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo apt-key add
+    5  sudo sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+    6  sudo apt update
+    7  sudo apt install jenkins
+    8  sudo systemctl start jenkins
+    9  sudo systemctl status jenkins
+   10  sudo apt install docker.io -y
+   11  sudo usermod -aG docker jenkins
+   12  sudo systemctl restart jenkins
+   13  history
+   
+   
+   
+  #pluggins
+  #maven+docker+ssh agent
+  
+  node {
+    def buildNumber = BUILD_NUMBER
+    stage("git clone"){
+        git url:'https://github.com/raviniru/java-web-app-docker.git',branch:'master'
+    }
+    stage("Maven Clean Package") {
+        
+      def mavenHome= tool name: "Maven",type:"maven" 
+      
+      sh "${mavenHome}/bin/mvn clean package"
+    }
+      stage("Build Docker Image") {
+        sh "docker build -t nirosha1/java-web-app-docker:${buildNumber} ."
+    }
+      stage("Docker Login and Push") {
+          withCredentials([string(credentialsId: 'docker', variable: 'docker')]) {
+        sh "docker login -u nirosha1 -p ${Docker}"
+      } 
+      sh "docker push nirosha1/java-web-app-docker:${buildNumber}"
+      }
+      stage("Deploy Application as Docker Container in Docker Deployment Server") {
+        sshagent(['Docker_dev']) {
+           sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.6.124 docker rm -f java_web_app_container || true"
+           
+           sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.6.124 docker run -d -p 8080:8080 --name java_web_app nirosha1/java-web-app-docker:${buildNumber}"
+            
+        }
+    }
+      
+}
